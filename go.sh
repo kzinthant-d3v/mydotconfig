@@ -1,66 +1,44 @@
 #!/bin/bash
 
-# Script to install the latest version of Go (Golang)
+# Define variables
+GO_VERSION="1.20.7"  # Specify the latest Go version here
+GO_TAR="go$GO_VERSION.linux-amd64.tar.gz"
+GO_URL="https://golang.org/dl/$GO_TAR"
+GO_INSTALL_DIR="/usr/local/go"
+SUDO_USER_HOME=$(eval echo ~${SUDO_USER})
 
-# Define the directory where Go will be installed
-INSTALL_DIR="/usr/local"
 
-# Function to check if a command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
+# Function to print status messages
+print_status() {
+    echo -e "\033[1;32m$1\033[0m"
 }
 
-# Check if Go is already installed
-if command_exists go; then
-  echo "Go is already installed. Skipping installation."
-  echo "Current Go version: $(go version)"
-  exit 0
+# Install dependencies
+print_status "Installing dependencies..."
+sudo apt-get update -y
+sudo apt-get install -y curl
+
+# Remove any previous Go installation
+print_status "Removing any previous Go installation..."
+sudo rm -rf "$GO_INSTALL_DIR"
+
+# Download and install Go
+print_status "Downloading Go $GO_VERSION..."
+curl -LO "$GO_URL"
+
+print_status "Installing Go..."
+sudo tar -C /usr/local -xzf "$GO_TAR"
+rm -f "$GO_TAR"
+
+# Set up Go environment in .zshrc
+if ! grep -q "export GOPATH=" "$SUDO_USER_HOME/.zshrc"; then
+    print_status "Adding Go environment variables to .zshrc..."
+    echo "export GOPATH=\$HOME/go" >> "$SUDO_USER_HOME/.zshrc"
+    echo "export PATH=\$PATH:/usr/local/go/bin:\$GOPATH/bin" >> "$SUDO_USER_HOME/.zshrc"
 fi
 
-# Fetch the latest stable Go version from the Go downloads page
-echo "Fetching the latest Go version..."
-GO_VERSION=$(curl -s https://go.dev/dl/ | grep -oP 'go[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+# Source .zshrc to apply changes
+print_status "Sourcing .zshrc to apply changes..."
+sudo -u "$SUDO_USER" bash -c "source $SUDO_USER_HOME/.zshrc"
 
-# Construct the download URL
-DOWNLOAD_URL="https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz"
-
-# Verify if the URL is reachable
-if ! curl --output /dev/null --silent --head --fail "$DOWNLOAD_URL"; then
-  echo "Error: The Go download URL is not reachable: $DOWNLOAD_URL"
-  exit 1
-fi
-
-# Download the latest Go binary
-echo "Downloading Go ${GO_VERSION}..."
-wget "$DOWNLOAD_URL" -O /tmp/go.tar.gz
-
-# Remove any previous Go installation and extract the new one
-echo "Removing any previous Go installation..."
-sudo rm -rf "${INSTALL_DIR}/go"
-
-echo "Extracting Go ${GO_VERSION} to ${INSTALL_DIR}..."
-sudo tar -C "${INSTALL_DIR}" -xzf /tmp/go.tar.gz
-
-# Clean up the downloaded archive
-rm /tmp/go.tar.gz
-
-# Set up Go environment variables in the current shell session
-export PATH="$PATH:/usr/local/go/bin"
-export GOPATH="$HOME/go"
-export PATH="$PATH:$GOPATH/bin"
-
-# Persist Go environment variables
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-echo 'export GOPATH=$HOME/go' >> ~/.bashrc
-echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
-
-# Source .bashrc to apply changes in the current terminal session
-source ~/.bashrc
-
-# Verify the installation
-echo "Verifying Go installation..."
-go version
-
-echo "Go installation complete. You may need to restart your terminal."
-
-
+print_status "Go installation and configuration complete. Open a new terminal or log out and log back in."
